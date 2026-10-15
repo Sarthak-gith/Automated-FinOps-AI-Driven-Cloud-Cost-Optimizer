@@ -8,4 +8,4 @@ def test_password_hash_and_signed_token_round_trip():
     token = issue_token(42)
     assert read_token(token) == 42
     payload, signature = token.split(".")
-    assert read_token(payload + "." + signature[:-1] + ("A" if signature[-1] != "A" else "B")) is None
+    assert read_token(payload + "." + ("A" if signature[0] != "A" else "B") + signature[1:]) is None

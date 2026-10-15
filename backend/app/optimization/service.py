@@ -45,7 +45,8 @@ def analyze_resource(session: Session, resource: Resource, since: datetime,
     )).all()}
     candidates = []
     prod = str(resource.labels.get("environment", "")).lower() == "prod"
-    if average < IDLE_AVG_CPU and highest < IDLE_MAX_CPU and "idle-stop" not in existing:
+    is_idle = average < IDLE_AVG_CPU and highest < IDLE_MAX_CPU
+    if is_idle and "idle-stop" not in existing:
         percent = 0.65 if prod else 0.80
         savings = int(resource.hourly_cost_cents * HOURS_PER_MONTH * percent)
         candidates.append(_recommendation(
@@ -54,7 +55,7 @@ def analyze_resource(session: Session, resource: Resource, since: datetime,
             f"and maximum CPU was {highest:.1f}%. A simulated stop may save about {percent:.0%} "
             "of the resource's monthly run cost; this estimate excludes restart and dependency costs.",
             savings, "high" if prod else "medium", now))
-    elif average < RIGHTSIZE_AVG_CPU and p95 < RIGHTSIZE_P95_CPU and "right-size" not in existing:
+    elif not is_idle and average < RIGHTSIZE_AVG_CPU and p95 < RIGHTSIZE_P95_CPU and "right-size" not in existing:
         percent = 0.25
         savings = int(resource.hourly_cost_cents * HOURS_PER_MONTH * percent)
         candidates.append(_recommendation(
