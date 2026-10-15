@@ -1,0 +1,1 @@
+"""Automated FinOps backend application."""
