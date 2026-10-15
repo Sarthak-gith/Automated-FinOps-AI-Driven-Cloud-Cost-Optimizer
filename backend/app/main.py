@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.routes import router
 from app.api.forecast_routes import router as forecast_router
+from app.api.optimization_routes import router as optimization_router
 from app.core.security import hash_password
 from app.db.database import SessionLocal, initialize_database
 from app.db.models import User
@@ -20,6 +21,7 @@ app.add_middleware(CORSMiddleware, allow_origins=os.getenv(
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(router)
 app.include_router(forecast_router)
+app.include_router(optimization_router)
 
 
 @app.on_event("startup")
