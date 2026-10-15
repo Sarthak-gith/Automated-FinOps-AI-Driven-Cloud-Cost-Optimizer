@@ -19,3 +19,14 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 }
 export const post = <T,>(path: string, body?: unknown) => api<T>(path, { method:'POST', body:JSON.stringify(body ?? {}) })
 export const put = <T,>(path: string, body: unknown) => api<T>(path, { method:'PUT', body:JSON.stringify(body) })
+export async function downloadReport(): Promise<Blob> {
+  const headers = new Headers()
+  if (token) headers.set('Authorization', 'Bearer ' + token)
+  const response = await fetch(API_URL + '/reports/cost-optimization.csv', { headers })
+  if (response.status === 401) setToken(null)
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    throw new Error(payload.detail || 'Report export failed (' + response.status + ')')
+  }
+  return response.blob()
+}

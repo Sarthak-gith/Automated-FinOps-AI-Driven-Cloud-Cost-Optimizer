@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
 import { CategoryScale, Chart as ChartJS, Filler, Legend, LinearScale, LineElement, PointElement, BarElement, Tooltip } from 'chart.js'
-import { api, post, put } from './services/api'
+import { api, downloadReport, post, put } from './services/api'
 import type { Action, Forecast, Metric, Recommendation, Resource, Summary } from './types'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
@@ -128,17 +128,12 @@ export function AuditPage() {
 }
 
 export function ReportsPage() {
-  const resources=useLoad<Resource[]>('/resources')
-  const recommendations=useLoad<Recommendation[]>('/recommendations')
-  const error=resources.error||recommendations.error
-  const download=()=>{
-    const rows=[['record_type','resource_id','category_or_kind','status','monthly_cost_or_savings_cents','simulated']]
-    ;(resources.data??[]).forEach(r=>rows.push(['resource',r.id,r.category,r.status,String(r.estimated_monthly_cost_cents),'true']))
-    ;(recommendations.data??[]).forEach(r=>rows.push(['recommendation',r.resource_id,r.kind,r.status,String(r.estimated_monthly_savings_cents),'true']))
-    const csv=rows.map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\r\n')
-    const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));link.download='automated-finops-simulated-report.csv';link.click();URL.revokeObjectURL(link.href)
-  }
-  return <><Heading title="Reports" description="Export simulated inventory and estimated savings for academic review." action={<button className="button button-primary" onClick={download} disabled={!resources.data}>Export CSV</button>}/><SimulatedBanner/><ErrorNotice error={error}/><div className="card"><h2 className="section-title">Report contents</h2><p className="muted" style={{fontSize:12,lineHeight:1.8}}>The CSV includes resource category, current simulated status, estimated monthly run cost, optimization recommendation status, and estimated savings. All cost values are integer cents, and records are labeled simulated.</p><div className="grid grid-2"><StatCard label="Resources included" value={String(resources.data?.length??0)} detail="Local demo inventory"/><StatCard label="Recommendations included" value={String(recommendations.data?.length??0)} detail="Estimated opportunities"/></div></div></>
+  const {data,error,loading}=useLoad<{simulated:boolean;resource_count:number;running_count:number;monthly_cost_cents:number;pending_estimated_savings_cents:number;recommendations_by_status:Record<string,number>}>('/reports/summary')
+  const [exportError,setExportError]=useState('')
+  const [busy,setBusy]=useState(false)
+  const download=async()=>{setBusy(true);setExportError('');try{const blob=await downloadReport();const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='automated-finops-simulated-report.csv';link.click();URL.revokeObjectURL(link.href)}catch(e){setExportError(e instanceof Error?e.message:'Report export failed')}finally{setBusy(false)}}
+  const recommendationCount=Object.values(data?.recommendations_by_status??{}).reduce((total,value)=>total+value,0)
+  return <><Heading title="Reports" description="Export simulated inventory and estimated savings for academic review." action={<button className="button button-primary" onClick={()=>void download()} disabled={!data||busy}>{busy?'Preparing…':'Export CSV'}</button>}/><SimulatedBanner/><ErrorNotice error={error||exportError}/>{loading?<Loading/>:<div className="card"><h2 className="section-title">Report contents</h2><p className="muted" style={{fontSize:12,lineHeight:1.8}}>The CSV includes resource category, current simulated status, estimated monthly run cost, optimization recommendation status, risk, and rationale. Currency is integer cents; all records are labeled simulated.</p><div className="grid grid-4"><StatCard label="Resources included" value={String(data?.resource_count??0)} detail="Local demo inventory"/><StatCard label="Running resources" value={String(data?.running_count??0)} detail="Included in current run rate"/><StatCard label="Estimated monthly cost" value={money(data?.monthly_cost_cents??0)} detail="Simulated running state"/><StatCard label="Pending recommendations" value={String(recommendationCount)} detail={money(data?.pending_estimated_savings_cents??0)+' estimated savings'}/></div></div>}</>
 }
 
 export function SettingsPage() { return <PoliciesPage/> }

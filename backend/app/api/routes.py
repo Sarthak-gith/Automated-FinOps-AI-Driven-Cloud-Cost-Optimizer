@@ -40,7 +40,7 @@ def resources(user: User = Depends(current_user), db: Session = Depends(get_db))
     return [{"id": r.id, "name": r.name, "provider": r.provider, "region": r.region,
              "category": r.category, "instance_type": r.instance_type, "size": r.size,
              "status": r.status, "hourly_cost_cents": r.hourly_cost_cents,
-             "estimated_monthly_cost_cents": r.hourly_cost_cents * 730,
+             "estimated_monthly_cost_cents": r.hourly_cost_cents * 730 if r.status == "running" else 0,
              "labels": r.labels, "simulated": True} for r in rows]
 
 
@@ -84,3 +84,10 @@ def dashboard_summary(user: User = Depends(current_user), db: Session = Depends(
 def reseed_status(db: Session = Depends(get_db)):
     from app.simulation.simulator import seed_demo_data
     return seed_demo_data(db)
+
+
+@router.post("/simulation/latest")
+def append_latest_metrics(db: Session = Depends(get_db),
+                          user: User = Depends(require_roles("admin", "analyst"))):
+    from app.simulation.simulator import generate_latest_metrics
+    return {"inserted_metrics": generate_latest_metrics(db), "simulated": True}

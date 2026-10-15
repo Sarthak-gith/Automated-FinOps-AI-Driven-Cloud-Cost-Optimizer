@@ -1,8 +1,12 @@
 """FastAPI entry point for the local simulated FinOps application."""
 
 import os
+import logging
+import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
@@ -10,6 +14,7 @@ from app.api.routes import router
 from app.api.forecast_routes import router as forecast_router
 from app.api.optimization_routes import router as optimization_router
 from app.api.workflow_routes import router as workflow_router
+from app.api.report_routes import router as report_router
 from app.core.security import hash_password
 from app.db.database import SessionLocal, initialize_database
 from app.db.models import AutomationPolicy, User
@@ -24,6 +29,37 @@ app.include_router(router)
 app.include_router(forecast_router)
 app.include_router(optimization_router)
 app.include_router(workflow_router)
+app.include_router(report_router)
+
+logger = logging.getLogger("automated_finops")
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={
+        "detail": "Request validation failed",
+        "errors": [{"field": ".".join(str(part) for part in issue["loc"]),
+                    "message": issue["msg"], "type": issue["type"]}
+                   for issue in exc.errors()],
+    })
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, "request_id", "unassigned")
+    logger.exception("Unhandled API error request_id=%s", request_id)
+    return JSONResponse(status_code=500, content={
+        "detail": "An unexpected server error occurred", "request_id": request_id,
+    })
 
 
 @app.on_event("startup")
