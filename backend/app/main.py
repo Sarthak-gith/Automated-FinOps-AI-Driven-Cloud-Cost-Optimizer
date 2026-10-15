@@ -3,10 +3,14 @@
 import os
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+
+load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
@@ -18,10 +22,37 @@ from app.api.report_routes import router as report_router
 from app.core.security import hash_password
 from app.db.database import SessionLocal, initialize_database
 from app.db.models import AutomationPolicy, User
-from app.simulation.simulator import seed_demo_data
+from app.providers.factory import get_provider
+
+
+@asynccontextmanager
+async def lifespan(_application: FastAPI):
+    initialize_database()
+    with SessionLocal() as db:
+        if db.scalar(select(User.id).limit(1)) is None:
+            demo_users = [
+                ("admin@finops.local", "FinOps Admin", "admin", "Admin123!"),
+                ("analyst@finops.local", "FinOps Analyst", "analyst", "Analyst123!"),
+                ("viewer@finops.local", "FinOps Viewer", "viewer", "Viewer123!"),
+            ]
+            for email, name, role, password in demo_users:
+                db.add(User(email=email, display_name=name, role=role,
+                            password_hash=hash_password(os.getenv(
+                                f"DEMO_{role.upper()}_PASSWORD", password))))
+            db.commit()
+        if db.scalar(select(AutomationPolicy.id).where(AutomationPolicy.name == "default")) is None:
+            db.add(AutomationPolicy(name="default", enabled=True, require_approval=True,
+                                    max_monthly_savings_cents=100_000,
+                                    allowed_actions=["idle-stop", "right-size"]))
+            db.commit()
+        get_provider().seed(db, resource_count=int(os.getenv("SIM_RESOURCE_COUNT", "20")),
+                           history_days=int(os.getenv("SIM_HISTORY_DAYS", "30")))
+    yield
+
 
 app = FastAPI(title="Automated FinOps API", version="0.1.0",
-              description="Local demo using simulated cloud resources and telemetry.")
+              description="Local demo using simulated cloud resources and telemetry.",
+              lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv(
     "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -60,30 +91,6 @@ async def unexpected_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={
         "detail": "An unexpected server error occurred", "request_id": request_id,
     })
-
-
-@app.on_event("startup")
-def startup() -> None:
-    initialize_database()
-    with SessionLocal() as db:
-        if db.scalar(select(User.id).limit(1)) is None:
-            demo_users = [
-                ("admin@finops.local", "FinOps Admin", "admin", "Admin123!"),
-                ("analyst@finops.local", "FinOps Analyst", "analyst", "Analyst123!"),
-                ("viewer@finops.local", "FinOps Viewer", "viewer", "Viewer123!"),
-            ]
-            for email, name, role, password in demo_users:
-                db.add(User(email=email, display_name=name, role=role,
-                            password_hash=hash_password(os.getenv(
-                                f"DEMO_{role.upper()}_PASSWORD", password))))
-            db.commit()
-        if db.scalar(select(AutomationPolicy.id).where(AutomationPolicy.name == "default")) is None:
-            db.add(AutomationPolicy(name="default", enabled=True, require_approval=True,
-                                    max_monthly_savings_cents=100_000,
-                                    allowed_actions=["idle-stop", "right-size"]))
-            db.commit()
-        seed_demo_data(db, resource_count=int(os.getenv("SIM_RESOURCE_COUNT", "20")),
-                       history_days=int(os.getenv("SIM_HISTORY_DAYS", "30")))
 
 
 @app.get("/health")

@@ -13,8 +13,8 @@ service.
   Lucide React. The browser calls the local FastAPI service.
 - `backend/app/`: FastAPI routes, SQLAlchemy models, business services, simulator,
   forecasting, and optimization modules.
-- `backend/app/providers/`: a local provider interface and simulator implementation.
-  It defines an extension seam for future providers; no real provider is implemented.
+- `backend/app/providers/`: the `TelemetryProvider` protocol, local simulator
+  implementation, and a factory that rejects unsupported live providers.
 - `backend/data/`: runtime SQLite database location, excluded from version control.
 - `docs/`: architecture, requirements, and user documentation.
 
@@ -45,9 +45,16 @@ actions, policies, audit events, and settings separate. Money is represented in
 integer minor units. Runtime database files, secrets, virtual environments, and
 build output are not source artifacts.
 
-The provider interface isolates telemetry collection from business services. Any
-future real provider integration would require a separate, explicit implementation
-and must preserve the simulated-data labeling in this project's demo mode.
+The provider protocol isolates seed and latest-metric collection from business
+services. `CLOUD_PROVIDER` currently accepts only `simulated`; the factory rejects
+other values. Any future provider integration would require a separate explicit
+implementation and must preserve simulated-data labeling in this project's demo
+mode.
+
+Prophet is the configured primary forecasting model. The Windows 11 validation
+environment installed Prophet 1.1.7 but its bundled CmdStan directory lacked a
+required makefile, so the service exercised and returned its explicitly labeled
+statsmodels ARIMA fallback. If neither model works, the service reports failure.
 
 ## Implementation sequence
 

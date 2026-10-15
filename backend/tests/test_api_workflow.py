@@ -84,6 +84,8 @@ def test_paused_policy_and_csv_report_are_enforced():
                          headers=analyst,json={})
     assert policy.status_code == 200
     admin = login(client,"admin@test.local","admin-test")
+    invalid_policy=client.put("/api/policies/default",headers=admin,json={"enabled":True,"require_approval":False,"max_monthly_savings_cents":100000})
+    assert invalid_policy.status_code == 422
     action_id=policy.json()["id"]
     assert client.post(f"/api/actions/{action_id}/approve",headers=admin).status_code == 200
     changed=client.put("/api/policies/default",headers=admin,json={"enabled":False,"require_approval":True,"max_monthly_savings_cents":100000})
@@ -94,5 +96,20 @@ def test_paused_policy_and_csv_report_are_enforced():
     assert "text/csv" in report.headers["content-type"]
     assert "sim-test-001" in report.text
     assert client.get("/api/reports/summary",headers=analyst).json()["simulated"] is True
+    app.dependency_overrides.clear()
+    engine.dispose()
+
+
+def test_admin_can_regenerate_simulation_without_losing_accounts_or_policy():
+    client, engine = make_client()
+    admin = login(client,"admin@test.local","admin-test")
+    result = client.post("/api/simulation/regenerate",headers=admin)
+    assert result.status_code == 200, result.text
+    assert result.json()["resources"] == 20
+    assert result.json()["simulated"] is True
+    assert client.get("/api/auth/me",headers=admin).json()["email"] == "admin@test.local"
+    policy = client.get("/api/policies/default",headers=admin)
+    assert policy.status_code == 200 and policy.json()["enabled"] is True
+    assert len(client.get("/api/resources",headers=admin).json()) == 20
     app.dependency_overrides.clear()
     engine.dispose()

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -18,7 +19,7 @@ class ActionRequest(BaseModel):
 
 class PolicyUpdate(BaseModel):
     enabled: bool
-    require_approval: bool = True
+    require_approval: Literal[True] = True
     max_monthly_savings_cents: int = Field(default=100_000, ge=0, le=100_000_000)
 
 

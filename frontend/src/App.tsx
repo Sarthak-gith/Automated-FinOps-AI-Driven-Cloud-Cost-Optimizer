@@ -55,10 +55,10 @@ function Shell({user,onLogout}:{user:User;onLogout:()=>void}) {
     <section className="main-area"><header className="topbar"><div className="top-title">{activeTitle}</div><div className="top-user"><span>{user.display_name} · {user.role}</span><span className="avatar">{user.display_name.slice(0,1).toUpperCase()}</span><button className="button" aria-label="Sign out" onClick={onLogout}><LogOut size={14}/>Sign out</button></div></header>
       <main className="content"><Routes>
         <Route path="/" element={<DashboardPage/>}/><Route path="/resources" element={<ResourcesPage/>}/>
-        <Route path="/forecasts" element={<ForecastsPage/>}/><Route path="/optimization" element={<OptimizationPage/>}/>
-        <Route path="/approvals" element={<ApprovalsPage/>}/><Route path="/policies" element={<PoliciesPage/>}/>
+        <Route path="/forecasts" element={<ForecastsPage role={user.role}/>}/><Route path="/optimization" element={<OptimizationPage role={user.role}/>}/>
+        <Route path="/approvals" element={<ApprovalsPage role={user.role}/>}/><Route path="/policies" element={<PoliciesPage role={user.role}/>}/>
         <Route path="/audit" element={<AuditPage/>}/><Route path="/reports" element={<ReportsPage/>}/>
-        <Route path="/settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/" replace/>}/>
+        <Route path="/settings" element={<SettingsPage role={user.role}/>}/><Route path="*" element={<Navigate to="/" replace/>}/>
       </Routes></main>
     </section>
   </div>

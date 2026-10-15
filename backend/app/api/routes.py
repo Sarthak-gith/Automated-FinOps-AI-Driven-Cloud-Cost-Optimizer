@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -82,12 +83,38 @@ def dashboard_summary(user: User = Depends(current_user), db: Session = Depends(
 
 @router.post("/simulation/seed", dependencies=[Depends(require_roles("admin"))])
 def reseed_status(db: Session = Depends(get_db)):
-    from app.simulation.simulator import seed_demo_data
-    return seed_demo_data(db)
+    from app.providers.factory import get_provider
+    return get_provider().seed(
+        db, resource_count=int(os.getenv("SIM_RESOURCE_COUNT", "20")),
+        history_days=int(os.getenv("SIM_HISTORY_DAYS", "30")))
 
 
 @router.post("/simulation/latest")
 def append_latest_metrics(db: Session = Depends(get_db),
                           user: User = Depends(require_roles("admin", "analyst"))):
-    from app.simulation.simulator import generate_latest_metrics
-    return {"inserted_metrics": generate_latest_metrics(db), "simulated": True}
+    from app.providers.factory import get_provider
+    return {"inserted_metrics": get_provider().collect_latest(db), "simulated": True}
+
+
+@router.post("/simulation/regenerate")
+def regenerate_simulation(db: Session = Depends(get_db),
+                          user: User = Depends(require_roles("admin"))):
+    from sqlalchemy import delete
+    from app.db.models import (AuditEvent, Forecast, OptimizationAction,
+                               Recommendation, Resource, ResourceMetric)
+    db.execute(delete(OptimizationAction))
+    db.execute(delete(Recommendation))
+    db.execute(delete(Forecast))
+    db.execute(delete(ResourceMetric))
+    db.execute(delete(Resource))
+    db.flush()
+    from app.providers.factory import get_provider
+    result = get_provider().seed(
+        db, resource_count=int(os.getenv("SIM_RESOURCE_COUNT", "20")),
+        history_days=int(os.getenv("SIM_HISTORY_DAYS", "30")))
+    db.add(AuditEvent(user_id=user.id, event_type="simulation.regenerated",
+                      entity_type="simulation", entity_id="default",
+                      details={"resources": result["resources"], "metrics": result["metrics"],
+                               "simulated": True}))
+    db.commit()
+    return {**result, "simulated": True}
