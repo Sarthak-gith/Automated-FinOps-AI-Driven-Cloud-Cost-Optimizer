@@ -9,9 +9,10 @@ from sqlalchemy import select
 from app.api.routes import router
 from app.api.forecast_routes import router as forecast_router
 from app.api.optimization_routes import router as optimization_router
+from app.api.workflow_routes import router as workflow_router
 from app.core.security import hash_password
 from app.db.database import SessionLocal, initialize_database
-from app.db.models import User
+from app.db.models import AutomationPolicy, User
 from app.simulation.simulator import seed_demo_data
 
 app = FastAPI(title="Automated FinOps API", version="0.1.0",
@@ -22,6 +23,7 @@ app.add_middleware(CORSMiddleware, allow_origins=os.getenv(
 app.include_router(router)
 app.include_router(forecast_router)
 app.include_router(optimization_router)
+app.include_router(workflow_router)
 
 
 @app.on_event("startup")
@@ -38,6 +40,11 @@ def startup() -> None:
                 db.add(User(email=email, display_name=name, role=role,
                             password_hash=hash_password(os.getenv(
                                 f"DEMO_{role.upper()}_PASSWORD", password))))
+            db.commit()
+        if db.scalar(select(AutomationPolicy.id).where(AutomationPolicy.name == "default")) is None:
+            db.add(AutomationPolicy(name="default", enabled=True, require_approval=True,
+                                    max_monthly_savings_cents=100_000,
+                                    allowed_actions=["idle-stop", "right-size"]))
             db.commit()
         seed_demo_data(db, resource_count=int(os.getenv("SIM_RESOURCE_COUNT", "20")),
                        history_days=int(os.getenv("SIM_HISTORY_DAYS", "30")))
