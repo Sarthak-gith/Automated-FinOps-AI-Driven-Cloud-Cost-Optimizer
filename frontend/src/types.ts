@@ -1,0 +1,7 @@
+export type User = { id:number; email:string; display_name:string; role:'admin'|'analyst'|'viewer' }
+export type Resource = { id:string; name:string; provider:string; region:string; category:string; instance_type:string; size:string; status:string; hourly_cost_cents:number; estimated_monthly_cost_cents:number; labels:Record<string,string>; simulated:boolean }
+export type Metric = { observed_at:string; cpu_percent:number; memory_percent:number; storage_percent:number; network_mbps:number; simulated:boolean }
+export type Summary = { simulated:boolean; resource_count:number; running_count:number; hourly_cost_cents:number; estimated_monthly_cost_cents:number; average_cpu_percent_24h:number|null; categories:{category:string;resource_count:number;hourly_cost_cents:number}[] }
+export type Recommendation = { id:string; resource_id:string; kind:string; status:string; rationale:string; estimated_monthly_savings_cents:number; risk_level:string; created_at:string; simulated:boolean; estimate:boolean }
+export type Action = { id:number; recommendation_id:string; action:string; status:string; simulated:boolean; requested_by_id:number|null; approved_by_id:number|null; requested_at:string; decided_at:string|null }
+export type Forecast = { resource_id:string; metric:string; generated_at:string; timestamp:string; predicted:number; lower_bound:number; upper_bound:number; model:string; status:string; simulated:boolean }
